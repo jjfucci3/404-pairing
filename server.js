@@ -175,6 +175,8 @@ function readRelationships() {
 }
 
 function writeRelationships(data) {
+  const dir = path.dirname(RELATIONSHIPS_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(RELATIONSHIPS_FILE, JSON.stringify(data, null, 2));
 }
 
