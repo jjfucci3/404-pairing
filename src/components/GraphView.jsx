@@ -7,7 +7,7 @@ function getInitials(name) {
 
 export default function GraphView({ knownPairs, allNames }) {
   const containerRef = useRef(null);
-  const graphRef = useRef(null);
+  const fgRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 560 });
   const [hoveredNode, setHoveredNode] = useState(null);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -15,12 +15,13 @@ export default function GraphView({ knownPairs, allNames }) {
   const [excludeInput, setExcludeInput] = useState('');
   const [excludeSuggestions, setExcludeSuggestions] = useState([]);
 
+  // Measure container
   useEffect(() => {
     function measure() {
       if (containerRef.current) {
         setDimensions({
           width: containerRef.current.offsetWidth,
-          height: Math.max(480, Math.min(680, window.innerHeight - 240)),
+          height: Math.max(500, Math.min(700, window.innerHeight - 220)),
         });
       }
     }
@@ -29,16 +30,23 @@ export default function GraphView({ knownPairs, allNames }) {
     return () => window.removeEventListener('resize', measure);
   }, []);
 
-  // Rebuild graph data when pairs or exclusions change
+  // Callback ref — sets forces the instant the component mounts
+  const graphRef = useCallback((el) => {
+    fgRef.current = el;
+    if (!el) return;
+    el.d3Force('charge')?.strength(-280);
+    el.d3Force('link')?.distance(100).strength(0.5);
+    el.d3Force('center')?.strength(0.05);
+  }, []);
+
+  // Rebuild graph data only when pairs/exclusions change
   const graphData = useMemo(() => {
     const activePairs = knownPairs.filter(
       ([a, b]) => !excludedNames.has(a) && !excludedNames.has(b)
     );
     const connected = new Set(activePairs.flat());
     return {
-      nodes: allNames
-        .filter(n => connected.has(n))
-        .map(n => ({ id: n })),
+      nodes: allNames.filter(n => connected.has(n)).map(n => ({ id: n })),
       links: activePairs.map(([a, b]) => ({ source: a, target: b })),
     };
   }, [knownPairs, allNames, excludedNames]);
@@ -67,81 +75,86 @@ export default function GraphView({ knownPairs, allNames }) {
     return s;
   }, [activeNode, knownPairs]);
 
-  const paintNode = useCallback((node, ctx, globalScale) => {
+  // Paint nodes: small circles with initials; hub nodes slightly larger
+  const paintNode = useCallback((node, ctx) => {
     const degree = degreeMap[node.id] || 1;
-    const r = Math.max(14, Math.min(22, 12 + degree * 0.7));
+    const r = Math.max(7, Math.min(14, 5 + degree * 0.75));
     const isActive = !activeNode || connectedIds.has(node.id);
     const isSelected = node.id === activeNode;
 
-    // Circle
     ctx.beginPath();
     ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
     ctx.fillStyle = isSelected
       ? '#a78bfa'
       : isActive
-      ? 'rgba(167,139,250,0.22)'
-      : 'rgba(100,80,180,0.07)';
+      ? 'rgba(167,139,250,0.18)'
+      : 'rgba(100,80,180,0.05)';
     ctx.fill();
     ctx.strokeStyle = isSelected
       ? '#c4b5fd'
       : isActive
-      ? 'rgba(167,139,250,0.55)'
-      : 'rgba(167,139,250,0.12)';
-    ctx.lineWidth = isSelected ? 2 : 1;
+      ? 'rgba(167,139,250,0.5)'
+      : 'rgba(167,139,250,0.1)';
+    ctx.lineWidth = isSelected ? 1.5 : 1;
     ctx.stroke();
 
-    // Initials
-    const fontSize = Math.max(8, Math.min(11, r * 0.55));
-    ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = isSelected
-      ? '#0d0d0d'
-      : isActive
-      ? 'rgba(240,240,240,0.9)'
-      : 'rgba(240,240,240,0.2)';
-    ctx.fillText(getInitials(node.id), node.x, node.y);
+    // Initials — only draw when node is large enough to be readable
+    if (r >= 9) {
+      const fs = Math.round(r * 0.52);
+      ctx.font = `600 ${fs}px -apple-system, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = isSelected
+        ? '#0d0d0d'
+        : isActive
+        ? 'rgba(240,240,240,0.85)'
+        : 'rgba(240,240,240,0.18)';
+      ctx.fillText(getInitials(node.id), node.x, node.y);
+    }
   }, [activeNode, connectedIds, degreeMap]);
 
   const getLinkColor = useCallback((link) => {
-    if (!activeNode) return 'rgba(167,139,250,0.3)';
+    if (!activeNode) return 'rgba(167,139,250,0.2)';
     const s = typeof link.source === 'object' ? link.source.id : link.source;
     const t = typeof link.target === 'object' ? link.target.id : link.target;
     return connectedIds.has(s) && connectedIds.has(t)
-      ? 'rgba(167,139,250,0.75)'
-      : 'rgba(167,139,250,0.04)';
+      ? 'rgba(167,139,250,0.7)'
+      : 'rgba(167,139,250,0.03)';
   }, [activeNode, connectedIds]);
 
   const getLinkWidth = useCallback((link) => {
-    if (!activeNode) return 1.5;
+    if (!activeNode) return 1;
     const s = typeof link.source === 'object' ? link.source.id : link.source;
     const t = typeof link.target === 'object' ? link.target.id : link.target;
-    return connectedIds.has(s) && connectedIds.has(t) ? 2.5 : 0.5;
+    return connectedIds.has(s) && connectedIds.has(t) ? 2 : 0.3;
   }, [activeNode, connectedIds]);
 
-  const zoomFit = useCallback(() => {
-    graphRef.current?.zoomToFit(800, 50);
+  // Zoom to fit once simulation settles
+  const handleEngineStop = useCallback(() => {
+    fgRef.current?.zoomToFit(600, 60);
   }, []);
 
-  const handleEngineStop = useCallback(() => {
-    setTimeout(zoomFit, 100);
-  }, [zoomFit]);
-
+  // Re-apply forces and re-fit whenever graphData changes (exclusion toggled)
   useEffect(() => {
-    const t = setTimeout(zoomFit, 2000);
-    return () => clearTimeout(t);
-  }, [zoomFit, graphData]);
+    const el = fgRef.current;
+    if (!el) return;
+    el.d3Force('charge')?.strength(-280);
+    el.d3Force('link')?.distance(100).strength(0.5);
+    el.d3Force('center')?.strength(0.05);
+    el.d3ReheatSimulation();
+  }, [graphData]);
 
-  // Exclude filter helpers
+  // --- Exclusion filter ---
   function handleExcludeInput(e) {
     const val = e.target.value;
     setExcludeInput(val);
-    if (!val.trim()) { setExcludeSuggestions([]); return; }
     setExcludeSuggestions(
-      allNames.filter(n =>
-        !excludedNames.has(n) &&
-        n.toLowerCase().includes(val.toLowerCase())
-      ).slice(0, 6)
+      val.trim()
+        ? allNames.filter(n =>
+            !excludedNames.has(n) &&
+            n.toLowerCase().includes(val.toLowerCase())
+          ).slice(0, 6)
+        : []
     );
   }
 
@@ -150,7 +163,6 @@ export default function GraphView({ knownPairs, allNames }) {
     setExcludeInput('');
     setExcludeSuggestions([]);
     setSelectedNode(null);
-    setHoveredNode(null);
   }
 
   function removeExclusion(name) {
@@ -163,7 +175,6 @@ export default function GraphView({ knownPairs, allNames }) {
 
   return (
     <div className="graph-wrapper">
-      {/* Exclusion filter bar */}
       <div className="graph-filter-bar">
         <div className="graph-filter-input-wrap">
           <input
@@ -215,9 +226,10 @@ export default function GraphView({ knownPairs, allNames }) {
           onNodeClick={node => setSelectedNode(prev => prev === node.id ? null : node.id)}
           onBackgroundClick={() => setSelectedNode(null)}
           nodeLabel={() => ''}
-          cooldownTicks={200}
-          d3AlphaDecay={0.02}
-          d3VelocityDecay={0.3}
+          warmupTicks={80}
+          cooldownTicks={100}
+          d3AlphaDecay={0.025}
+          d3VelocityDecay={0.25}
           onEngineStop={handleEngineStop}
           enableNodeDrag
           enableZoomInteraction
