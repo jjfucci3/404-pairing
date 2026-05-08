@@ -18,6 +18,7 @@ import basicAuth from 'express-basic-auth';
 const app = express();
 const PORT = process.env.PORT || 3002;
 const RELATIONSHIPS_FILE = process.env.RELATIONSHIPS_FILE || path.join(__dirname, 'relationships.json');
+const REPO_RELATIONSHIPS_FILE = path.join(__dirname, 'relationships.json');
 
 const client = new Anthropic();
 
@@ -96,6 +97,7 @@ function parseRow(cols) {
     sameSexComfort: parseInt(cols[27]) || null,
     ageGapComfort: parseInt(cols[28]) || null,
     dealbreakers: cols[29]?.trim() || '',
+    referredBy: cols[31]?.trim() || '',
   };
 }
 
@@ -160,6 +162,13 @@ const FALLBACK_PROFILES = [
 
 function readRelationships() {
   if (!fs.existsSync(RELATIONSHIPS_FILE)) {
+    // Volume path set but file not yet created — seed from the repo copy
+    if (RELATIONSHIPS_FILE !== REPO_RELATIONSHIPS_FILE && fs.existsSync(REPO_RELATIONSHIPS_FILE)) {
+      const seed = JSON.parse(fs.readFileSync(REPO_RELATIONSHIPS_FILE, 'utf8'));
+      writeRelationships(seed);
+      console.log(`Seeded ${RELATIONSHIPS_FILE} from repo copy (${seed.knownPairs.length} pairs)`);
+      return seed;
+    }
     return { knownPairs: [], notes: {} };
   }
   return JSON.parse(fs.readFileSync(RELATIONSHIPS_FILE, 'utf8'));
@@ -178,6 +187,34 @@ function isKnown(relationships, a, b) {
   return relationships.knownPairs.some(pair => pairKey(pair[0], pair[1]) === key);
 }
 
+// Maps first-name answers in "referred by" to full profile names
+const REFERRER_MAP = {
+  'jake': 'Jake Fucci',
+  'isaiah': 'Isaiah Walsh',
+};
+
+function syncReferralRelationships() {
+  if (!profilesCache.length) return;
+  const data = readRelationships();
+  let added = 0;
+
+  for (const profile of profilesCache) {
+    if (!profile.referredBy) continue;
+    const key = profile.referredBy.trim().toLowerCase().split(/\s+/)[0];
+    const referrerName = REFERRER_MAP[key];
+    if (!referrerName || referrerName === profile.name) continue;
+    if (!isKnown(data, profile.name, referrerName)) {
+      data.knownPairs.push([profile.name, referrerName]);
+      added++;
+    }
+  }
+
+  if (added > 0) {
+    writeRelationships(data);
+    console.log(`Referral sync: added ${added} new pair(s)`);
+  }
+}
+
 // --- Routes ---
 
 app.get('/api/profiles', (_req, res) => {
@@ -187,6 +224,7 @@ app.get('/api/profiles', (_req, res) => {
 app.get('/api/reload', async (_req, res) => {
   try {
     profilesCache = await fetchProfilesFromSheet();
+    syncReferralRelationships();
     res.json({ count: profilesCache.length, profiles: profilesCache });
   } catch (err) {
     console.error('Reload error:', err.message);
@@ -413,9 +451,10 @@ async function start() {
     console.log(`Loaded ${profilesCache.length} profiles from Google Sheet`);
   } catch (err) {
     console.warn('Google Sheet not configured — using hardcoded fallback profiles');
-    console.warn('Set GOOGLE_SERVICE_ACCOUNT_KEY and SHEET_ID in .env to use live data');
     profilesCache = FALLBACK_PROFILES;
   }
+
+  syncReferralRelationships();
 
   app.listen(PORT, () => {
     console.log(`404 pairing engine → http://localhost:${PORT}`);

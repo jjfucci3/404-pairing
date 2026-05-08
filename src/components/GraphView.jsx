@@ -1,5 +1,9 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
+
+function getInitials(name) {
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+}
 
 export default function GraphView({ knownPairs, allNames }) {
   const containerRef = useRef(null);
@@ -7,6 +11,9 @@ export default function GraphView({ knownPairs, allNames }) {
   const [dimensions, setDimensions] = useState({ width: 800, height: 560 });
   const [hoveredNode, setHoveredNode] = useState(null);
   const [selectedNode, setSelectedNode] = useState(null);
+  const [excludedNames, setExcludedNames] = useState(new Set());
+  const [excludeInput, setExcludeInput] = useState('');
+  const [excludeSuggestions, setExcludeSuggestions] = useState([]);
 
   useEffect(() => {
     function measure() {
@@ -22,75 +29,86 @@ export default function GraphView({ knownPairs, allNames }) {
     return () => window.removeEventListener('resize', measure);
   }, []);
 
-  // Build graph data — stable refs so the simulation doesn't restart on every render
-  const connectedNames = new Set(knownPairs.flat());
-
-  const graphData = useRef(null);
-  if (!graphData.current) {
-    graphData.current = {
+  // Rebuild graph data when pairs or exclusions change
+  const graphData = useMemo(() => {
+    const activePairs = knownPairs.filter(
+      ([a, b]) => !excludedNames.has(a) && !excludedNames.has(b)
+    );
+    const connected = new Set(activePairs.flat());
+    return {
       nodes: allNames
-        .filter(name => connectedNames.has(name))
-        .map(name => ({
-          id: name,
-          x: (Math.random() - 0.5) * 10,
-          y: (Math.random() - 0.5) * 10,
-        })),
-      links: knownPairs.map(([a, b]) => ({ source: a, target: b })),
+        .filter(n => connected.has(n))
+        .map(n => ({ id: n })),
+      links: activePairs.map(([a, b]) => ({ source: a, target: b })),
     };
-  }
+  }, [knownPairs, allNames, excludedNames]);
 
-  // Connection count per node
-  const degreeMap = {};
-  for (const [a, b] of knownPairs) {
-    degreeMap[a] = (degreeMap[a] || 0) + 1;
-    degreeMap[b] = (degreeMap[b] || 0) + 1;
-  }
+  const degreeMap = useMemo(() => {
+    const m = {};
+    for (const { source, target } of graphData.links) {
+      const s = typeof source === 'object' ? source.id : source;
+      const t = typeof target === 'object' ? target.id : target;
+      m[s] = (m[s] || 0) + 1;
+      m[t] = (m[t] || 0) + 1;
+    }
+    return m;
+  }, [graphData]);
 
   const activeNode = selectedNode || hoveredNode;
 
-  const connectedIds = new Set();
-  if (activeNode) {
-    connectedIds.add(activeNode);
+  const connectedIds = useMemo(() => {
+    const s = new Set();
+    if (!activeNode) return s;
+    s.add(activeNode);
     for (const [a, b] of knownPairs) {
-      if (a === activeNode) connectedIds.add(b);
-      if (b === activeNode) connectedIds.add(a);
+      if (a === activeNode) s.add(b);
+      if (b === activeNode) s.add(a);
     }
-  }
+    return s;
+  }, [activeNode, knownPairs]);
 
   const paintNode = useCallback((node, ctx, globalScale) => {
     const degree = degreeMap[node.id] || 1;
-    const r = Math.max(4, Math.min(10, 3 + degree * 0.8));
-    const label = node.id.split(' ')[0];
+    const r = Math.max(14, Math.min(22, 12 + degree * 0.7));
     const isActive = !activeNode || connectedIds.has(node.id);
     const isSelected = node.id === activeNode;
 
+    // Circle
     ctx.beginPath();
     ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
-    ctx.fillStyle = isSelected ? '#a78bfa' : isActive ? '#c4b5fd' : 'rgba(100,80,180,0.2)';
+    ctx.fillStyle = isSelected
+      ? '#a78bfa'
+      : isActive
+      ? 'rgba(167,139,250,0.22)'
+      : 'rgba(100,80,180,0.07)';
     ctx.fill();
+    ctx.strokeStyle = isSelected
+      ? '#c4b5fd'
+      : isActive
+      ? 'rgba(167,139,250,0.55)'
+      : 'rgba(167,139,250,0.12)';
+    ctx.lineWidth = isSelected ? 2 : 1;
+    ctx.stroke();
 
-    if (isSelected) {
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, r + 3, 0, 2 * Math.PI);
-      ctx.strokeStyle = 'rgba(167,139,250,0.5)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-
-    const fontSize = Math.max(9, Math.min(12, 9 / Math.max(0.5, globalScale * 0.5)));
-    ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
-    ctx.fillStyle = isActive ? 'rgba(240,240,240,0.9)' : 'rgba(240,240,240,0.15)';
+    // Initials
+    const fontSize = Math.max(8, Math.min(11, r * 0.55));
+    ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(label, node.x, node.y + r + 2);
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = isSelected
+      ? '#0d0d0d'
+      : isActive
+      ? 'rgba(240,240,240,0.9)'
+      : 'rgba(240,240,240,0.2)';
+    ctx.fillText(getInitials(node.id), node.x, node.y);
   }, [activeNode, connectedIds, degreeMap]);
 
   const getLinkColor = useCallback((link) => {
-    if (!activeNode) return 'rgba(167,139,250,0.35)';
+    if (!activeNode) return 'rgba(167,139,250,0.3)';
     const s = typeof link.source === 'object' ? link.source.id : link.source;
     const t = typeof link.target === 'object' ? link.target.id : link.target;
     return connectedIds.has(s) && connectedIds.has(t)
-      ? 'rgba(167,139,250,0.8)'
+      ? 'rgba(167,139,250,0.75)'
       : 'rgba(167,139,250,0.04)';
   }, [activeNode, connectedIds]);
 
@@ -101,61 +119,110 @@ export default function GraphView({ knownPairs, allNames }) {
     return connectedIds.has(s) && connectedIds.has(t) ? 2.5 : 0.5;
   }, [activeNode, connectedIds]);
 
-  function handleNodeClick(node) {
-    setSelectedNode(prev => (prev === node.id ? null : node.id));
-  }
-
   const zoomFit = useCallback(() => {
     graphRef.current?.zoomToFit(800, 50);
   }, []);
 
   const handleEngineStop = useCallback(() => {
-    setTimeout(zoomFit, 50);
+    setTimeout(zoomFit, 100);
   }, [zoomFit]);
 
   useEffect(() => {
-    // Belt-and-suspenders: fire zoomToFit at 1s and 3s
-    const t1 = setTimeout(zoomFit, 1000);
-    const t2 = setTimeout(zoomFit, 3000);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [zoomFit]);
+    const t = setTimeout(zoomFit, 2000);
+    return () => clearTimeout(t);
+  }, [zoomFit, graphData]);
 
-  if (graphData.current.nodes.length === 0) {
+  // Exclude filter helpers
+  function handleExcludeInput(e) {
+    const val = e.target.value;
+    setExcludeInput(val);
+    if (!val.trim()) { setExcludeSuggestions([]); return; }
+    setExcludeSuggestions(
+      allNames.filter(n =>
+        !excludedNames.has(n) &&
+        n.toLowerCase().includes(val.toLowerCase())
+      ).slice(0, 6)
+    );
+  }
+
+  function addExclusion(name) {
+    setExcludedNames(prev => new Set([...prev, name]));
+    setExcludeInput('');
+    setExcludeSuggestions([]);
+    setSelectedNode(null);
+    setHoveredNode(null);
+  }
+
+  function removeExclusion(name) {
+    setExcludedNames(prev => { const n = new Set(prev); n.delete(name); return n; });
+  }
+
+  if (graphData.nodes.length === 0) {
     return <div className="graph-empty">No relationships to visualise yet.</div>;
   }
 
   return (
-    <div className="graph-container" ref={containerRef}>
-      {activeNode && (
-        <div className="graph-tooltip">
-          <strong>{activeNode}</strong>
-          <span>{degreeMap[activeNode] || 0} connection{degreeMap[activeNode] !== 1 ? 's' : ''}</span>
-          {selectedNode && (
-            <button className="graph-deselect" onClick={() => setSelectedNode(null)}>✕</button>
+    <div className="graph-wrapper">
+      {/* Exclusion filter bar */}
+      <div className="graph-filter-bar">
+        <div className="graph-filter-input-wrap">
+          <input
+            type="text"
+            className="graph-filter-input"
+            placeholder="Hide a person from graph…"
+            value={excludeInput}
+            onChange={handleExcludeInput}
+            autoComplete="off"
+          />
+          {excludeSuggestions.length > 0 && (
+            <ul className="graph-filter-suggestions">
+              {excludeSuggestions.map(n => (
+                <li key={n} onMouseDown={() => addExclusion(n)}>{n}</li>
+              ))}
+            </ul>
           )}
         </div>
-      )}
-      <ForceGraph2D
-        ref={graphRef}
-        graphData={graphData.current}
-        width={dimensions.width}
-        height={dimensions.height}
-        backgroundColor="#0d0d0d"
-        nodeCanvasObject={paintNode}
-        nodeCanvasObjectMode={() => 'replace'}
-        linkColor={getLinkColor}
-        linkWidth={getLinkWidth}
-        onNodeHover={node => setHoveredNode(node ? node.id : null)}
-        onNodeClick={handleNodeClick}
-        onBackgroundClick={() => setSelectedNode(null)}
-        nodeLabel={() => ''}
-        cooldownTicks={200}
-        d3AlphaDecay={0.02}
-        d3VelocityDecay={0.3}
-        onEngineStop={handleEngineStop}
-        enableNodeDrag
-        enableZoomInteraction
-      />
+        {[...excludedNames].map(name => (
+          <span key={name} className="exclusion-chip">
+            {name}
+            <button onClick={() => removeExclusion(name)}>✕</button>
+          </span>
+        ))}
+      </div>
+
+      <div className="graph-container" ref={containerRef}>
+        {activeNode && (
+          <div className="graph-tooltip">
+            <strong>{activeNode}</strong>
+            <span>{degreeMap[activeNode] || 0} connection{degreeMap[activeNode] !== 1 ? 's' : ''}</span>
+            {selectedNode && (
+              <button className="graph-deselect" onClick={() => setSelectedNode(null)}>✕</button>
+            )}
+          </div>
+        )}
+        <ForceGraph2D
+          ref={graphRef}
+          graphData={graphData}
+          width={dimensions.width}
+          height={dimensions.height}
+          backgroundColor="#0d0d0d"
+          nodeCanvasObject={paintNode}
+          nodeCanvasObjectMode={() => 'replace'}
+          nodeRelSize={1}
+          linkColor={getLinkColor}
+          linkWidth={getLinkWidth}
+          onNodeHover={node => setHoveredNode(node ? node.id : null)}
+          onNodeClick={node => setSelectedNode(prev => prev === node.id ? null : node.id)}
+          onBackgroundClick={() => setSelectedNode(null)}
+          nodeLabel={() => ''}
+          cooldownTicks={200}
+          d3AlphaDecay={0.02}
+          d3VelocityDecay={0.3}
+          onEngineStop={handleEngineStop}
+          enableNodeDrag
+          enableZoomInteraction
+        />
+      </div>
     </div>
   );
 }

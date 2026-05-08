@@ -546,3 +546,76 @@ a.person-name:hover {
   border: 1px solid var(--border);
   border-radius: 10px;
 }
+
+/* Graph wrapper + filter bar */
+.graph-wrapper { display: flex; flex-direction: column; gap: 10px; }
+
+.graph-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.graph-filter-input-wrap {
+  position: relative;
+}
+
+.graph-filter-input {
+  width: 220px;
+  font-size: 13px;
+  padding: 7px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  outline: none;
+}
+
+.graph-filter-input:focus { border-color: var(--accent); }
+
+.graph-filter-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 220px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  list-style: none;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.graph-filter-suggestions li {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.graph-filter-suggestions li:hover { background: var(--border); }
+
+.exclusion-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 4px 10px 4px 12px;
+  font-size: 12px;
+  color: var(--subtext);
+}
+
+.exclusion-chip button {
+  background: none;
+  border: none;
+  color: var(--subtext);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+  line-height: 1;
+}
+
+.exclusion-chip button:hover { color: var(--text); }

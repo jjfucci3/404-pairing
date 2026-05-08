@@ -28,7 +28,12 @@ export default function App() {
         </div>
       </header>
       <main className="main">
-        {tab === 'pairing' ? <PairingTab /> : <RelationshipMapTab />}
+        <div style={{ display: tab === 'pairing' ? 'block' : 'none' }}>
+          <PairingTab />
+        </div>
+        <div style={{ display: tab === 'relationships' ? 'block' : 'none' }}>
+          <RelationshipMapTab />
+        </div>
       </main>
     </div>
   );
