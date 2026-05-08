@@ -408,3 +408,63 @@ a.person-name:hover {
 
 .autocomplete-item:hover { background: var(--border); }
 .autocomplete-item.selected { color: var(--accent); }
+
+/* Checkbox person list */
+.checkbox-person-list { position: relative; flex: 1; min-width: 160px; }
+
+.checkbox-person-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.checkbox-person-input-wrap input { width: 100%; padding-right: 90px; }
+
+.checkbox-count-badge {
+  position: absolute;
+  right: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.checkbox-list { max-height: 260px; }
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  user-select: none;
+}
+
+.checkbox-item:hover:not(.already-known) { background: var(--border); }
+.checkbox-item.already-known { opacity: 0.45; cursor: default; }
+
+.person-checkbox {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.checkbox-item.already-known .person-checkbox { cursor: not-allowed; }
+
+.checkbox-name { flex: 1; font-size: 13px; }
+
+.already-known-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--subtext);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  background: var(--border);
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.no-match { color: var(--subtext); cursor: default; font-size: 12px; }

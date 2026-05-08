@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import AutocompleteInput from './AutocompleteInput.jsx';
+import CheckboxPersonList from './CheckboxPersonList.jsx';
 
 export default function RelationshipMapTab() {
   const [relationships, setRelationships] = useState({ knownPairs: [], notes: {} });
   const [allNames, setAllNames] = useState([]);
   const [personA, setPersonA] = useState('');
-  const [personB, setPersonB] = useState('');
+  const [selectedPeople, setSelectedPeople] = useState(new Set());
   const [filter, setFilter] = useState('');
   const [adding, setAdding] = useState(false);
 
@@ -24,17 +25,17 @@ export default function RelationshipMapTab() {
     setAllNames([...new Set(profiles.map(p => p.name))].sort());
   }
 
-  async function addPair() {
-    if (!personA || !personB || personA === personB) return;
+  async function addPairs() {
+    if (!personA || selectedPeople.size === 0) return;
     setAdding(true);
-    const res = await fetch('/api/relationships', {
+    const res = await fetch('/api/relationships/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personA, personB }),
+      body: JSON.stringify({ personA, people: [...selectedPeople] }),
     });
     setRelationships(await res.json());
     setPersonA('');
-    setPersonB('');
+    setSelectedPeople(new Set());
     setAdding(false);
   }
 
@@ -65,18 +66,21 @@ export default function RelationshipMapTab() {
             placeholder="Person A…"
           />
           <span className="knows-label">knows</span>
-          <AutocompleteInput
-            value={personB}
-            onChange={setPersonB}
-            options={allNames}
-            placeholder="Person B…"
+          <CheckboxPersonList
+            personA={personA}
+            allNames={allNames}
+            knownPairs={relationships.knownPairs}
+            selected={selectedPeople}
+            onChange={setSelectedPeople}
           />
           <button
             className="btn-primary"
-            onClick={addPair}
-            disabled={!personA || !personB || personA === personB || adding}
+            onClick={addPairs}
+            disabled={!personA || selectedPeople.size === 0 || adding}
           >
-            Mark as known
+            {selectedPeople.size > 1
+              ? `Mark as known (${selectedPeople.size})`
+              : 'Mark as known'}
           </button>
         </div>
       </div>

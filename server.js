@@ -210,6 +210,20 @@ app.post('/api/relationships', (req, res) => {
   res.json(data);
 });
 
+app.post('/api/relationships/batch', (req, res) => {
+  const { personA, people } = req.body;
+  if (!personA || !Array.isArray(people)) return res.status(400).json({ error: 'personA and people[] required' });
+
+  const data = readRelationships();
+  for (const personB of people) {
+    if (personB && personB !== personA && !isKnown(data, personA, personB)) {
+      data.knownPairs.push([personA, personB]);
+    }
+  }
+  writeRelationships(data);
+  res.json(data);
+});
+
 app.delete('/api/relationships', (req, res) => {
   const { personA, personB } = req.body;
   if (!personA || !personB) return res.status(400).json({ error: 'personA and personB required' });
