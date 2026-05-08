@@ -249,60 +249,50 @@ app.post('/api/notes', (req, res) => {
   res.json(data);
 });
 
-const PRE_FILTER_SIZE = 75;
+const PRE_FILTER_SIZE = 150;
 
 function preFilterPool(target, pool) {
   if (pool.length <= PRE_FILTER_SIZE) return pool;
 
   const targetLF = new Set(target.lookingFor || []);
+  const targetOnlyRomantic = targetLF.size === 1 && targetLF.has('romantic');
 
-  const scored = pool.map(c => {
-    let score = 0;
-
-    // City match
-    if (target.city && c.city && target.city.toLowerCase() === c.city.toLowerCase()) score += 3;
-
-    // lookingFor overlap
+  const eligible = pool.filter(c => {
     const cLF = new Set(c.lookingFor || []);
-    for (const type of targetLF) if (cLF.has(type)) score += 2;
+    const cOnlyRomantic = cLF.size === 1 && cLF.has('romantic');
 
-    // Seriousness proximity (1–5 scale)
-    if (target.seriousness != null && c.seriousness != null) {
-      const diff = Math.abs(target.seriousness - c.seriousness);
-      if (diff <= 1) score += 2;
-      else if (diff === 2) score += 1;
-    }
-
-    // Openness (higher = easier to connect)
-    if (c.openness != null) score += c.openness * 0.4;
-
-    // Romantic sex/sexuality compatibility
-    if (targetLF.has('romantic') && cLF.has('romantic')) {
+    // Hard exclude: both are romantic-only but sexually incompatible
+    if (targetOnlyRomantic || cOnlyRomantic) {
       const tSex = (target.sex || '').toUpperCase();
       const cSex = (c.sex || '').toUpperCase();
-      if (tSex && cSex) {
-        const opposite = tSex !== cSex;
-        score += opposite
-          ? ((target.oppositeSexComfort || 0) + (c.oppositeSexComfort || 0)) * 0.5
-          : ((target.sameSexComfort || 0) + (c.sameSexComfort || 0)) * 0.5;
-      }
+      const tSexuality = (target.sexuality || '').toLowerCase();
+      const cSexuality = (c.sexuality || '').toLowerCase();
+      const opposite = tSex && cSex && tSex !== cSex;
+      const tOpenToOpposite = tSexuality !== 'gay' && tSexuality !== 'lesbian';
+      const tOpenToSame = tSexuality !== 'straight';
+      const cOpenToOpposite = cSexuality !== 'gay' && cSexuality !== 'lesbian';
+      const cOpenToSame = cSexuality !== 'straight';
+      const compatible = opposite
+        ? tOpenToOpposite && cOpenToOpposite
+        : tOpenToSame && cOpenToSame;
+      if (!compatible) return false;
     }
 
-    // Age gap — hard penalise if either person has ageGapComfort:1 and gap >= 5 yrs
+    // Hard exclude: age gap >= 5 yrs and either person has ageGapComfort:1
     if (target.age != null && c.age != null) {
       const gap = Math.abs(target.age - c.age);
-      if (gap >= 5) {
-        const minComfort = Math.min(target.ageGapComfort ?? 3, c.ageGapComfort ?? 3);
-        if (minComfort <= 1) score -= 20;
-        else if (minComfort === 2) score -= 3;
-      }
+      if (gap >= 5 && Math.min(target.ageGapComfort ?? 3, c.ageGapComfort ?? 3) <= 1) return false;
     }
 
-    return { c, score };
+    return true;
   });
 
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, PRE_FILTER_SIZE).map(s => s.c);
+  // Random shuffle so Claude sees a varied pool, not alphabetical
+  for (let i = eligible.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [eligible[i], eligible[j]] = [eligible[j], eligible[i]];
+  }
+  return eligible.slice(0, PRE_FILTER_SIZE);
 }
 
 const SYSTEM_PROMPT = `You are the pairing engine for 404, a human connection service. Pair people with intention and genuine reasoning — not algorithmically.
