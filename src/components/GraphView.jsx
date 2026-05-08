@@ -1,6 +1,5 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
-import { forceCollide } from 'd3-force-3d';
 
 function getInitials(name) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
@@ -35,10 +34,9 @@ export default function GraphView({ knownPairs, allNames }) {
   const graphRef = useCallback((el) => {
     fgRef.current = el;
     if (!el) return;
-    el.d3Force('charge')?.strength(-300);
+    el.d3Force('charge')?.strength(-500);
     el.d3Force('link')?.distance(80).strength(0.5);
     el.d3Force('center')?.strength(0.05);
-    el.d3Force('collide', forceCollide(15).iterations(3));
   }, []);
 
   // Rebuild graph data only when pairs/exclusions change
@@ -149,10 +147,9 @@ export default function GraphView({ knownPairs, allNames }) {
   useEffect(() => {
     const el = fgRef.current;
     if (!el) return;
-    el.d3Force('charge')?.strength(-300);
+    el.d3Force('charge')?.strength(-500);
     el.d3Force('link')?.distance(80).strength(0.5);
     el.d3Force('center')?.strength(0.05);
-    el.d3Force('collide', forceCollide(15).iterations(3));
     el.d3ReheatSimulation();
   }, [graphData]);
 
