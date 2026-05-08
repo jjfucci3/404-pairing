@@ -468,3 +468,81 @@ a.person-name:hover {
 }
 
 .no-match { color: var(--subtext); cursor: default; font-size: 12px; }
+
+/* View toggle */
+.view-toggle {
+  display: flex;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.view-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--subtext);
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+
+.view-toggle-btn:hover { color: var(--text); }
+.view-toggle-btn.active { background: var(--border); color: var(--text); }
+
+/* Graph */
+.graph-container {
+  position: relative;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.graph-tooltip {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.graph-tooltip strong { color: var(--accent); }
+.graph-tooltip span { color: var(--subtext); font-size: 12px; }
+
+.graph-deselect {
+  pointer-events: all;
+  background: none;
+  border: none;
+  color: var(--subtext);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 2px;
+  margin-left: 4px;
+  line-height: 1;
+}
+
+.graph-deselect:hover { color: var(--text); }
+
+.graph-empty {
+  padding: 48px;
+  text-align: center;
+  color: var(--subtext);
+  font-size: 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}

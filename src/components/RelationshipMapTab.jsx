@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AutocompleteInput from './AutocompleteInput.jsx';
 import CheckboxPersonList from './CheckboxPersonList.jsx';
+import GraphView from './GraphView.jsx';
 
 export default function RelationshipMapTab() {
   const [relationships, setRelationships] = useState({ knownPairs: [], notes: {} });
@@ -9,6 +10,7 @@ export default function RelationshipMapTab() {
   const [selectedPeople, setSelectedPeople] = useState(new Set());
   const [filter, setFilter] = useState('');
   const [adding, setAdding] = useState(false);
+  const [view, setView] = useState('list');
 
   useEffect(() => {
     loadData();
@@ -87,35 +89,54 @@ export default function RelationshipMapTab() {
 
       <div className="rel-list-header">
         <span className="pair-count">{relationships.knownPairs.length} known pairs</span>
-        <input
-          className="filter-input"
-          type="text"
-          placeholder="Filter by name…"
-          value={filter}
-          onChange={e => setFilter(e.target.value)}
-        />
-      </div>
-
-      <div className="rel-list">
-        {filteredPairs.length === 0 ? (
-          <div className="rel-empty">
-            {filter ? 'No pairs match that name.' : 'No known pairs yet.'}
-          </div>
-        ) : (
-          filteredPairs.map(([a, b]) => (
-            <div key={`${a}|||${b}`} className="pair-row">
-              <span className="pair-names">
-                {a}
-                <span className="pair-sep">↔</span>
-                {b}
-              </span>
-              <button className="btn-ghost remove-btn" onClick={() => removePair(a, b)}>
-                Remove
-              </button>
-            </div>
-          ))
+        <div className="view-toggle">
+          <button
+            className={`view-toggle-btn${view === 'list' ? ' active' : ''}`}
+            onClick={() => setView('list')}
+          >List</button>
+          <button
+            className={`view-toggle-btn${view === 'graph' ? ' active' : ''}`}
+            onClick={() => setView('graph')}
+          >Graph</button>
+        </div>
+        {view === 'list' && (
+          <input
+            className="filter-input"
+            type="text"
+            placeholder="Filter by name…"
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+          />
         )}
       </div>
+
+      {view === 'list' ? (
+        <div className="rel-list">
+          {filteredPairs.length === 0 ? (
+            <div className="rel-empty">
+              {filter ? 'No pairs match that name.' : 'No known pairs yet.'}
+            </div>
+          ) : (
+            filteredPairs.map(([a, b]) => (
+              <div key={`${a}|||${b}`} className="pair-row">
+                <span className="pair-names">
+                  {a}
+                  <span className="pair-sep">↔</span>
+                  {b}
+                </span>
+                <button className="btn-ghost remove-btn" onClick={() => removePair(a, b)}>
+                  Remove
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+        <GraphView
+          knownPairs={relationships.knownPairs}
+          allNames={allNames}
+        />
+      )}
     </div>
   );
 }
