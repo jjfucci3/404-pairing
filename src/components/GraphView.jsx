@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
+import { forceCollide } from 'd3-force-3d';
 
 function getInitials(name) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
@@ -34,9 +35,10 @@ export default function GraphView({ knownPairs, allNames }) {
   const graphRef = useCallback((el) => {
     fgRef.current = el;
     if (!el) return;
-    el.d3Force('charge')?.strength(-280);
-    el.d3Force('link')?.distance(100).strength(0.5);
+    el.d3Force('charge')?.strength(-300);
+    el.d3Force('link')?.distance(80).strength(0.5);
     el.d3Force('center')?.strength(0.05);
+    el.d3Force('collide', forceCollide(15).iterations(3));
   }, []);
 
   // Rebuild graph data only when pairs/exclusions change
@@ -75,10 +77,14 @@ export default function GraphView({ knownPairs, allNames }) {
     return s;
   }, [activeNode, knownPairs]);
 
-  // Paint nodes: small circles with initials; hub nodes slightly larger
-  const paintNode = useCallback((node, ctx) => {
+  const nodeRadius = useCallback((node) => {
     const degree = degreeMap[node.id] || 1;
-    const r = Math.max(7, Math.min(14, 5 + degree * 0.75));
+    return Math.max(9, Math.min(13, 8 + degree * 0.35));
+  }, [degreeMap]);
+
+  // Paint nodes: circles with initials, subtly sized by connection count
+  const paintNode = useCallback((node, ctx) => {
+    const r = nodeRadius(node);
     const isActive = !activeNode || connectedIds.has(node.id);
     const isSelected = node.id === activeNode;
 
@@ -98,20 +104,25 @@ export default function GraphView({ knownPairs, allNames }) {
     ctx.lineWidth = isSelected ? 1.5 : 1;
     ctx.stroke();
 
-    // Initials — only draw when node is large enough to be readable
-    if (r >= 9) {
-      const fs = Math.round(r * 0.52);
-      ctx.font = `600 ${fs}px -apple-system, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = isSelected
-        ? '#0d0d0d'
-        : isActive
-        ? 'rgba(240,240,240,0.85)'
-        : 'rgba(240,240,240,0.18)';
-      ctx.fillText(getInitials(node.id), node.x, node.y);
-    }
-  }, [activeNode, connectedIds, degreeMap]);
+    const fs = Math.max(5, Math.round(r * 0.6));
+    ctx.font = `600 ${fs}px -apple-system, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = isSelected
+      ? '#0d0d0d'
+      : isActive
+      ? 'rgba(240,240,240,0.85)'
+      : 'rgba(240,240,240,0.18)';
+    ctx.fillText(getInitials(node.id), node.x, node.y);
+  }, [activeNode, connectedIds, nodeRadius]);
+
+  const paintNodePointerArea = useCallback((node, color, ctx) => {
+    const r = nodeRadius(node);
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }, [nodeRadius]);
 
   const getLinkColor = useCallback((link) => {
     if (!activeNode) return 'rgba(167,139,250,0.2)';
@@ -138,9 +149,10 @@ export default function GraphView({ knownPairs, allNames }) {
   useEffect(() => {
     const el = fgRef.current;
     if (!el) return;
-    el.d3Force('charge')?.strength(-280);
-    el.d3Force('link')?.distance(100).strength(0.5);
+    el.d3Force('charge')?.strength(-300);
+    el.d3Force('link')?.distance(80).strength(0.5);
     el.d3Force('center')?.strength(0.05);
+    el.d3Force('collide', forceCollide(15).iterations(3));
     el.d3ReheatSimulation();
   }, [graphData]);
 
@@ -219,13 +231,18 @@ export default function GraphView({ knownPairs, allNames }) {
           backgroundColor="#0d0d0d"
           nodeCanvasObject={paintNode}
           nodeCanvasObjectMode={() => 'replace'}
+          nodePointerAreaPaint={paintNodePointerArea}
           nodeRelSize={1}
           linkColor={getLinkColor}
           linkWidth={getLinkWidth}
           onNodeHover={node => setHoveredNode(node ? node.id : null)}
           onNodeClick={node => setSelectedNode(prev => prev === node.id ? null : node.id)}
           onBackgroundClick={() => setSelectedNode(null)}
-          nodeLabel={() => ''}
+          nodeLabel={(node) =>
+            selectedNode && node.id !== selectedNode && connectedIds.has(node.id)
+              ? node.id
+              : ''
+          }
           warmupTicks={80}
           cooldownTicks={100}
           d3AlphaDecay={0.025}
