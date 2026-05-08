@@ -249,6 +249,62 @@ app.post('/api/notes', (req, res) => {
   res.json(data);
 });
 
+const PRE_FILTER_SIZE = 75;
+
+function preFilterPool(target, pool) {
+  if (pool.length <= PRE_FILTER_SIZE) return pool;
+
+  const targetLF = new Set(target.lookingFor || []);
+
+  const scored = pool.map(c => {
+    let score = 0;
+
+    // City match
+    if (target.city && c.city && target.city.toLowerCase() === c.city.toLowerCase()) score += 3;
+
+    // lookingFor overlap
+    const cLF = new Set(c.lookingFor || []);
+    for (const type of targetLF) if (cLF.has(type)) score += 2;
+
+    // Seriousness proximity (1–5 scale)
+    if (target.seriousness != null && c.seriousness != null) {
+      const diff = Math.abs(target.seriousness - c.seriousness);
+      if (diff <= 1) score += 2;
+      else if (diff === 2) score += 1;
+    }
+
+    // Openness (higher = easier to connect)
+    if (c.openness != null) score += c.openness * 0.4;
+
+    // Romantic sex/sexuality compatibility
+    if (targetLF.has('romantic') && cLF.has('romantic')) {
+      const tSex = (target.sex || '').toUpperCase();
+      const cSex = (c.sex || '').toUpperCase();
+      if (tSex && cSex) {
+        const opposite = tSex !== cSex;
+        score += opposite
+          ? ((target.oppositeSexComfort || 0) + (c.oppositeSexComfort || 0)) * 0.5
+          : ((target.sameSexComfort || 0) + (c.sameSexComfort || 0)) * 0.5;
+      }
+    }
+
+    // Age gap — hard penalise if either person has ageGapComfort:1 and gap >= 5 yrs
+    if (target.age != null && c.age != null) {
+      const gap = Math.abs(target.age - c.age);
+      if (gap >= 5) {
+        const minComfort = Math.min(target.ageGapComfort ?? 3, c.ageGapComfort ?? 3);
+        if (minComfort <= 1) score -= 20;
+        else if (minComfort === 2) score -= 3;
+      }
+    }
+
+    return { c, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, PRE_FILTER_SIZE).map(s => s.c);
+}
+
 const SYSTEM_PROMPT = `You are the pairing engine for 404, a human connection service. Pair people with intention and genuine reasoning — not algorithmically.
 
 Given a target person and available profiles, return 3-5 ranked pairings.
@@ -308,6 +364,9 @@ app.post('/api/pair', async (req, res) => {
     return res.status(400).json({ error: 'No available pairings — everyone is already known.' });
   }
 
+  const filteredPool = preFilterPool(target, pool);
+  console.log(`Pool: ${pool.length} → pre-filtered to ${filteredPool.length} for ${personName}`);
+
   const excludedNames = excluded.length ? excluded.join(', ') : 'None';
   const userMessage = `Target person:
 ${JSON.stringify(target, null, 2)}
@@ -317,7 +376,7 @@ Operator notes on this person: ${notes || 'None'}
 Additional context: ${context || 'None'}
 
 Available pool:
-${JSON.stringify(pool, null, 2)}
+${JSON.stringify(filteredPool, null, 2)}
 
 Return 3-5 ranked pairings.`;
 
