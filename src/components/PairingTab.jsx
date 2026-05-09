@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import SuggestionCard from './SuggestionCard.jsx';
+import AutocompleteInput from './AutocompleteInput.jsx';
 
 export default function PairingTab() {
   const [profiles, setProfiles] = useState([]);
@@ -27,7 +28,7 @@ export default function PairingTab() {
     try {
       const res = await fetch('/api/profiles');
       const data = await res.json();
-      setProfiles(data.filter(p => p.name !== 'Jake Fucci'));
+      setProfiles(data);
     } catch (err) {
       console.error('Failed to load profiles:', err);
     }
@@ -40,7 +41,7 @@ export default function PairingTab() {
       const res = await fetch('/api/reload');
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setProfiles((data.profiles || []).filter(p => p.name !== 'Jake Fucci'));
+      setProfiles(data.profiles || []);
     } catch (err) {
       setError('Could not refresh from Sheet: ' + err.message);
     } finally {
@@ -59,20 +60,26 @@ export default function PairingTab() {
     setTimeout(() => setNoteSaved(false), 2000);
   }
 
-  async function generatePairings() {
+  async function generatePairings(append = false) {
     if (!selected) return;
     setLoading(true);
     setError('');
-    setPairings([]);
+    if (!append) setPairings([]);
     try {
+      const current = append ? pairings : [];
       const res = await fetch('/api/pair', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personName: selected, context, notes }),
+        body: JSON.stringify({
+          personName: selected,
+          context,
+          notes,
+          alreadySuggested: current.map(p => p.name),
+        }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setPairings(data.pairings || []);
+      setPairings(prev => append ? [...prev, ...(data.pairings || [])] : (data.pairings || []));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -97,20 +104,17 @@ export default function PairingTab() {
         <div className="field">
           <label>Person</label>
           <div className="select-row">
-            <select
+            <AutocompleteInput
               value={selected}
-              onChange={e => {
-                setSelected(e.target.value);
+              onChange={name => {
+                setSelected(name);
                 setPairings([]);
                 setError('');
                 setContext('');
               }}
-            >
-              <option value="">Select a person...</option>
-              {profiles.map(p => (
-                <option key={p.name} value={p.name}>{p.name}</option>
-              ))}
-            </select>
+              options={profiles.map(p => p.name)}
+              placeholder="Select a person..."
+            />
             <button
               className="btn-ghost refresh-btn"
               onClick={refreshProfiles}
@@ -195,6 +199,13 @@ export default function PairingTab() {
               onMarkKnown={() => markKnown(pairing.name)}
             />
           ))}
+          <button
+            className="btn-ghost generate-more-btn"
+            onClick={() => generatePairings(true)}
+            disabled={loading}
+          >
+            {loading ? 'Generating…' : 'Generate more pairings'}
+          </button>
         </div>
       )}
     </div>

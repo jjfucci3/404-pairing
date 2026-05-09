@@ -364,7 +364,7 @@ Return ONLY a valid JSON array. No markdown, no preamble.
 [{"rank":1,"name":"Full Name","type":"friend | collaborator | romantic | friend + collaborator","reasoning":"2-3 sentences referencing both people's actual profile details.","flag":"optional concern, omit key entirely if none"}]`;
 
 app.post('/api/pair', async (req, res) => {
-  const { personName, context, notes } = req.body;
+  const { personName, context, notes, alreadySuggested = [] } = req.body;
 
   // Re-fetch on every pairing run to catch new survey responses
   try {
@@ -383,11 +383,10 @@ app.post('/api/pair', async (req, res) => {
     .filter(pair => pair[0] === personName || pair[1] === personName)
     .map(pair => pair[0] === personName ? pair[1] : pair[0]);
 
-  // Jake knows everyone — always exclude him from the pool
   const pool = profilesCache.filter(p =>
     p.name !== personName &&
-    p.name !== 'Jake Fucci' &&
-    !excluded.includes(p.name)
+    !excluded.includes(p.name) &&
+    !alreadySuggested.includes(p.name)
   );
 
   if (pool.length === 0) {

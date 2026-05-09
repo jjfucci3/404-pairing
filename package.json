@@ -9,7 +9,7 @@
     "build": "vite build",
     "build:start": "vite build && node server.js",
     "start": "node server.js",
-    "sync": "export $(grep -v '^#' .env | grep PROD_AUTH | xargs) && curl -s -u $PROD_AUTH_USER:$PROD_AUTH_PASS https://404-pairing-production.up.railway.app/api/relationships -o relationships.json && echo 'Synced from production'"
+    "sync": "export $(grep -v '^#' $([ -f .env ] && echo .env || echo $(dirname $(git rev-parse --git-common-dir))/.env) | grep PROD_AUTH | xargs) && curl -s -u $PROD_AUTH_USER:$PROD_AUTH_PASS https://404-pairing-production.up.railway.app/api/relationships -o relationships.json && echo 'Synced from production'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",

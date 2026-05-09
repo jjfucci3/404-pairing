@@ -211,6 +211,7 @@ select { cursor: pointer; }
 
 /* Pairings results */
 .pairings-results { display: flex; flex-direction: column; gap: 12px; }
+.generate-more-btn { width: 100%; margin-top: 4px; }
 
 .results-header {
   font-size: 12px;
@@ -559,10 +560,11 @@ a.person-name:hover {
 
 .graph-filter-input-wrap {
   position: relative;
+  flex: 1;
 }
 
 .graph-filter-input {
-  width: 220px;
+  width: 100%;
   font-size: 13px;
   padding: 7px 12px;
   background: var(--surface2);
