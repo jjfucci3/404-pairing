@@ -28,6 +28,9 @@ let profilesCache = [];
 app.use(cors());
 app.use(express.json());
 
+// Public healthcheck for Railway — must come before basic auth
+app.get('/api/healthz', (_req, res) => res.json({ ok: true }));
+
 if (process.env.BASIC_AUTH_USER && process.env.BASIC_AUTH_PASS) {
   app.use(basicAuth({
     users: { [process.env.BASIC_AUTH_USER]: process.env.BASIC_AUTH_PASS },
